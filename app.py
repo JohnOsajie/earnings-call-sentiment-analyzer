@@ -15,8 +15,9 @@ from plotly.subplots import make_subplots
 import nltk
 from nltk.sentiment import SentimentIntensityAnalyzer
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 import yfinance as yf
+from api_integration.gemini_client import GeminiClient
 
 # Import custom modules
 # from transcript_fetcher import fetch_transcript # We will primarily use pasted text, so commenting this out for now
@@ -34,6 +35,10 @@ except LookupError:
 
 # Initialize sentiment analyzer
 sia = SentimentIntensityAnalyzer()
+
+# Initialize Gemini client
+GEMINI_API_KEY = "AIzaSyCxSDVjgljIVoPTIxUQV9AVhGTo4iak7m8"
+gemini_client = GeminiClient(GEMINI_API_KEY)
 
 # Commenting out earnings date fetching as manual input is default
 # def get_earnings_dates(ticker: str) -> List[datetime]:
@@ -226,6 +231,104 @@ def generate_sentiment_price_correlation_plot(avg_sentiment: float, price_data: 
 
     return fig
 
+def generate_market_impact_plot(
+    predicted_movement: str,
+    sentiment_score: float,
+    price_data: Dict[str, Any]
+) -> go.Figure:
+    """
+    Generate plot comparing predicted vs actual stock movement.
+    
+    Args:
+        predicted_movement: 'up', 'down', or 'flat'
+        sentiment_score: Float between -1 and 1
+        price_data: Dictionary with dates and prices
+    
+    Returns:
+        Plotly figure object
+    """
+    # Extract dates and prices
+    dates = []
+    prices = []
+    for key in sorted(price_data.keys(), key=lambda x: int(x.split('+')[1]) if '+' in x else 0):
+        if price_data[key]:
+            dates.append(price_data[key]['date'])
+            prices.append(price_data[key]['price'])
+
+    if not dates or not prices:
+        raise ValueError("No valid price data available")
+
+    # Calculate actual movement
+    start_price = prices[0]
+    end_price = prices[-1]
+    price_change = ((end_price - start_price) / start_price) * 100
+    
+    # Determine actual movement
+    if abs(price_change) < 1:
+        actual_movement = 'flat'
+    else:
+        actual_movement = 'up' if price_change > 0 else 'down'
+    
+    # Check if prediction was correct
+    correct = predicted_movement == actual_movement
+    
+    # Create figure
+    fig = go.Figure()
+    
+    # Add price line
+    fig.add_trace(go.Scatter(
+        x=dates,
+        y=prices,
+        mode='lines+markers',
+        name='Stock Price',
+        line=dict(
+            color='green' if correct else 'red',
+            width=2
+        ),
+        marker=dict(size=8)
+    ))
+    
+    # Add prediction annotation at start
+    fig.add_annotation(
+        x=dates[0],
+        y=prices[0],
+        text=f"Predicted: {predicted_movement.upper()}<br>Sentiment: {sentiment_score:.2f}",
+        showarrow=True,
+        arrowhead=2,
+        ax=0,
+        ay=-40,
+        bgcolor='rgba(255, 255, 255, 0.8)',
+        bordercolor='black',
+        borderwidth=1
+    )
+    
+    # Add outcome annotation at end
+    fig.add_annotation(
+        x=dates[-1],
+        y=prices[-1],
+        text=f"{'✅ Correct' if correct else '❌ Incorrect'}<br>Change: {price_change:+.1f}%",
+        showarrow=False,
+        font=dict(
+            color='green' if correct else 'red',
+            size=14
+        ),
+        bgcolor='rgba(255, 255, 255, 0.8)',
+        bordercolor='black',
+        borderwidth=1
+    )
+    
+    # Update layout
+    fig.update_layout(
+        title="Market Impact: Prediction vs. Actual",
+        xaxis_title="Date",
+        yaxis_title="Stock Price ($)",
+        template="plotly_white",
+        showlegend=False,
+        hovermode='x unified'
+    )
+    
+    return fig
+
 def main():
     st.title("📈 Earnings Call Sentiment Analyzer")
     
@@ -254,12 +357,17 @@ def main():
     st.markdown("""
         <style>
         div[data-testid="stHorizontalBlock"] {
-            gap: 1rem;
+            gap: 0;
+            justify-content: space-between;
+        }
+        .stButton {
+            width: 100%;
+            margin: 0 0.5rem;
         }
         </style>
     """, unsafe_allow_html=True)
     
-    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])  # Equal width columns
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])  # Four equal width columns
     with col1:
         analyze_button = st.button("Analyze Sentiment", use_container_width=True)
     with col2:
@@ -273,16 +381,48 @@ def main():
     
     if analyze_button:
         if not transcript_text:
-            st.warning("Please paste the earnings call transcript before analyzing sentiment.")
+            st.warning("Please paste the earnings call transcript before analyzing.")
         else:
-            with st.spinner("Analyzing sentiment..."):
-                try:
-                    st.session_state.sentiment_results = analyze_transcript_sentiment(transcript_text)
-                    st.success("Sentiment analysis complete!")
-                except Exception as e:
-                    st.error(f"An error occurred during sentiment analysis: {str(e)}")
-                    logger.error(f"Sentiment analysis error: {str(e)}")
-                    st.session_state.sentiment_results = None
+            with st.spinner("Analyzing transcript..."):
+                result = gemini_client.analyze_transcript(transcript_text)
+                
+                if 'error' in result:
+                    st.error(result['error'])
+                else:
+                    # Always show the summary if available
+                    st.subheader("Transcript Summary")
+                    st.write(result['summary'])
+                    
+                    # Show sentiment score if available, otherwise show error
+                    st.subheader("Sentiment Analysis")
+                    if 'sentiment_score' in result:
+                        sentiment_score = result['sentiment_score']
+                        # Store in session state
+                        st.session_state.sentiment_score = sentiment_score
+                        # Color code based on sentiment
+                        if sentiment_score > 0:
+                            st.success(f"Sentiment Score: {sentiment_score:.2f}")
+                        elif sentiment_score < 0:
+                            st.error(f"Sentiment Score: {sentiment_score:.2f}")
+                        else:
+                            st.info(f"Sentiment Score: {sentiment_score:.2f}")
+                    elif 'sentiment_error' in result:
+                        st.warning(f"Could not generate sentiment score: {result['sentiment_error']}")
+
+                    # Show predicted movement if available
+                    st.subheader("Price Movement Prediction")
+                    if 'predicted_movement' in result:
+                        movement = result['predicted_movement']
+                        # Store in session state
+                        st.session_state.predicted_movement = movement
+                        if movement == 'up':
+                            st.success("Predicted Movement: 📈 Up")
+                        elif movement == 'down':
+                            st.error("Predicted Movement: 📉 Down")
+                        else:
+                            st.info("Predicted Movement: ↔️ Flat")
+                    elif 'prediction_error' in result:
+                        st.warning(f"Could not generate price prediction: {result['prediction_error']}")
 
     if fetch_market_button:
         if not ticker or not date:
@@ -293,100 +433,14 @@ def main():
                     # Use the provided date for fetching price
                     target_fetch_date = datetime.combine(date, datetime.min.time())
                     
-                    # --- Attempt to fetch stock prices with fallback ---
-                    price_data = None
-                    # Need get_earnings_dates function for fallback
-                    def get_earnings_dates(ticker: str) -> List[datetime]:
-                        """
-                        Get list of recent earnings dates for a stock.
-                        """
-                        try:
-                            stock = yf.Ticker(ticker)
-                            earnings_dates = stock.earnings_dates
-                            if earnings_dates is not None and not earnings_dates.empty:
-                                return sorted(earnings_dates.index.tolist(), reverse=True)
-                            return []
-                        except Exception as e:
-                            logger.error(f"Error fetching earnings dates: {str(e)}")
-                            return []
-
-                    def find_nearest_earnings_date(ticker: str, target_date: datetime) -> Optional[datetime]:
-                        """
-                        Find the nearest PAST earnings date to the target date.
-                        """
-                        earnings_dates = get_earnings_dates(ticker)
-                        if not earnings_dates:
-                            return None
-                        
-                        if isinstance(target_date, datetime):
-                            target_date_obj = target_date.date()
-                        else:
-                            target_date_obj = target_date # Assume it's already a date object
-                            
-                        past_earnings_dates = [date for date in earnings_dates if date.date() <= target_date_obj]
-
-                        if not past_earnings_dates:
-                            logger.warning(f"No past earnings dates found for {ticker} on or before {target_date_obj}")
-                            return None
-
-                        nearest_past_date = min(past_earnings_dates, key=lambda x: abs(x.date() - target_date_obj))
-                        return nearest_past_date
-
-                    earnings_dates = get_earnings_dates(ticker)
-                    
-                    dates_to_try = []
-                    nearest_past_earnings_date = find_nearest_earnings_date(ticker, date)
-                    if nearest_past_earnings_date:
-                        dates_to_try.append(nearest_past_earnings_date)
-                    
-                    # Add a few more recent past earnings dates just in case the nearest doesn't work
-                    if earnings_dates:
-                        # Consider dates before the nearest past date found
-                        further_past_dates = sorted([ed for ed in earnings_dates if ed.date() < (nearest_past_earnings_date.date() if nearest_past_earnings_date else date)], reverse=True)
-                        dates_to_try.extend(further_past_dates[:4]) # Add up to 4 more dates
-                    
-                    # Ensure the original target date is considered if no past earnings date was found
-                    if not dates_to_try and isinstance(date, datetime):
-                        dates_to_try.append(datetime.combine(date, datetime.min.time()))
-                    elif not dates_to_try: # If date is already a date object and no earnings dates found
-                        dates_to_try.append(datetime.combine(date, datetime.min.time()))
-
-                    # Remove duplicates and ensure unique dates to try
-                    unique_dates_to_try = []
-                    seen_dates = set()
-                    for dt in dates_to_try:
-                        # Convert to date and check if seen, then add original datetime if unique
-                        date_only = dt.date()
-                        if date_only not in seen_dates:
-                            unique_dates_to_try.append(dt) # Keep as datetime for get_stock_prices
-                            seen_dates.add(date_only)
-
-                    fetched_price_date = None
-                    for date_to_try in unique_dates_to_try:
-                        try:
-                            logger.info(f"Attempting to fetch stock prices for {ticker} near {date_to_try.strftime('%Y-%m-%d')}")
-                            # get_stock_prices should handle getting T, T+1, T+7 relative to date_to_try
-                            current_price_data = get_stock_prices(ticker, date_to_try)
-                            # Check if essential data points (like T+1) are available and not None
-                            if current_price_data and current_price_data.get('T+1') and current_price_data['T+1'].get('price') is not None:
-                                price_data = current_price_data
-                                fetched_price_date = date_to_try
-                                logger.info(f"Successfully fetched stock prices for {ticker} near {date_to_try.strftime('%Y-%m-%d')}")
-                                break # Exit loop if data is successfully fetched
-                            else:
-                                logger.warning(f"Incomplete stock price data for {ticker} near {date_to_try.strftime('%Y-%m-%d')}. Trying next date if available.")
-                                price_data = None # Ensure price_data is None if incomplete
-                        except Exception as price_e:
-                            logger.warning(f"Error fetching stock prices for {ticker} near {date_to_try.strftime('%Y-%m-%d')}: {str(price_e)}. Trying next date if available.")
-                            price_data = None # Ensure price_data is None on error
-                            
-                    if not price_data:
-                         st.warning(f"Could not fetch sufficient stock price data for {ticker} near {date.strftime('%Y-%m-%d')} or recent past dates.")
-                         st.session_state.price_data = None
+                    # Fetch price data
+                    price_data = get_stock_prices(ticker, target_fetch_date)
+                    if price_data:
+                        st.session_state.price_data = price_data
+                        st.success("Market data fetching complete!")
                     else:
-                         st.session_state.price_data = price_data
-                         st.success("Market data fetching complete!")
-
+                        st.warning("No market data available for the selected date.")
+                        st.session_state.price_data = None
                 except Exception as e:
                     st.error(f"An error occurred while fetching market data: {str(e)}")
                     logger.error(f"Market data fetching error: {str(e)}")
@@ -394,7 +448,7 @@ def main():
 
     if fetch_news_button:
         if not ticker or not date:
-             st.warning("Please enter both Stock Ticker and Earnings Date to fetch news articles.")
+            st.warning("Please enter both Stock Ticker and Earnings Date to fetch news articles.")
         else:
             with st.spinner("Fetching news articles..."):
                 try:
@@ -407,10 +461,9 @@ def main():
                     st.session_state.news_sentiment = news_sentiment
                     
                     if st.session_state.news_sentiment:
-                         st.success("News articles fetching complete!")
+                        st.success("News articles fetching complete!")
                     else:
-                         st.warning("No articles were retrieved.")
-
+                        st.warning("No articles were retrieved.")
                 except Exception as e:
                     st.error(f"An error occurred while fetching news articles: {str(e)}")
                     logger.error(f"News articles fetching error: {str(e)}")
@@ -489,15 +542,20 @@ def main():
                     elif tab_content_key == "market" and st.session_state.price_data:
                         st.subheader("Stock Price Movement")
                         
-                        # Calculate average sentiment if sentiment results are available
-                        avg_sentiment = 0
-                        if st.session_state.sentiment_results:
-                             avg_sentiment = sum(d['compound_score'] for d in st.session_state.sentiment_results) / len(st.session_state.sentiment_results)
-
                         try:
-                            # Display the combined sentiment and price plot
-                            st.plotly_chart(generate_sentiment_price_correlation_plot(avg_sentiment, st.session_state.price_data))
-
+                            # Get prediction and sentiment from session state
+                            if 'predicted_movement' in st.session_state and 'sentiment_score' in st.session_state:
+                                # Display the market impact plot
+                                st.plotly_chart(
+                                    generate_market_impact_plot(
+                                        st.session_state.predicted_movement,
+                                        st.session_state.sentiment_score,
+                                        st.session_state.price_data
+                                    ),
+                                    use_container_width=True
+                                )
+                            else:
+                                st.warning("Please analyze the transcript first to get predictions.")
                         except Exception as e:
                             st.warning(f"Could not display Market Impact data. Error: {str(e)}")
                             logger.error(f"Market Impact display error: {str(e)}")

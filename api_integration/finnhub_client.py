@@ -160,53 +160,50 @@ def get_stock_price_on_date(symbol: str, date_str: str) -> dict:
 
 def get_stock_prices(ticker: str, date: datetime) -> Dict:
     """
-    Fetch stock prices for T, T+1, and T+7 using yfinance.
+    Fetch stock prices for T to T+6 using yfinance.
     
     Args:
         ticker: Stock symbol
-        date: Target date
+        date: Target date (T)
     
     Returns:
-        Dictionary containing price data
+        Dictionary containing price data for 7 days
     """
     try:
-        # Calculate dates using pd.Timedelta
-        dates = {
-            'T': date,
-            'T+1': date + pd.Timedelta(days=1),
-            'T+7': date + pd.Timedelta(days=7)
-        }
+        # Calculate date range (T to T+6)
+        start_date = date
+        end_date = date + pd.Timedelta(days=6)
         
-        prices = {}
+        # Fetch data
         stock = yf.Ticker(ticker)
+        hist = stock.history(
+            start=start_date.strftime('%Y-%m-%d'),
+            end=(end_date + pd.Timedelta(days=1)).strftime('%Y-%m-%d')  # Add 1 day to include T+6
+        )
         
-        for key, target_date in dates.items():
-            # Get data for the target date
-            hist = stock.history(
-                start=target_date.strftime('%Y-%m-%d'),
-                end=(target_date + pd.Timedelta(days=1)).strftime('%Y-%m-%d')
-            )
+        if hist.empty:
+            logger.warning(f"No data found for {ticker} from {start_date} to {end_date}")
+            return None
             
-            if not hist.empty:
-                prices[key] = {
-                    'price': hist['Close'].iloc[0],
-                    'change': ((hist['Close'].iloc[0] - hist['Open'].iloc[0]) / hist['Open'].iloc[0]) * 100
-                }
-            else:
-                prices[key] = {
-                    'price': None,
-                    'change': None
-                }
-        
+        # Process the data
+        prices = {}
+        for i, (date, row) in enumerate(hist.iterrows()):
+            day_key = f'T+{i}' if i > 0 else 'T'
+            prices[day_key] = {
+                'date': date.strftime('%Y-%m-%d'),
+                'price': row['Close'],
+                'open': row['Open'],
+                'high': row['High'],
+                'low': row['Low'],
+                'volume': row['Volume'],
+                'change': ((row['Close'] - row['Open']) / row['Open']) * 100
+            }
+            
         return prices
         
     except Exception as e:
         logger.error(f"Error fetching stock prices: {str(e)}")
-        return {
-            'T': {'price': None, 'change': None},
-            'T+1': {'price': None, 'change': None},
-            'T+7': {'price': None, 'change': None}
-        }
+        return None
 
 def get_sentiment(ticker: str, date: datetime) -> Dict:
     """
