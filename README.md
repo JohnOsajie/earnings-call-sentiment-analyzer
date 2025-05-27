@@ -1,24 +1,38 @@
 # Earnings Call Sentiment Analyzer
 
-A Python application that analyzes the sentiment of earnings call transcripts using natural language processing (NLP). This tool helps investors and analysts understand the emotional tone and sentiment trends in corporate earnings calls.
+A sophisticated Python application that analyzes earnings call transcripts using advanced AI and natural language processing to provide insights into market sentiment and potential stock movements. This tool combines the power of Google's Gemini AI and Finnhub's financial data to deliver comprehensive analysis of earnings calls.
 
-## 🧰 Tech Stack
+## Features
+
+- **AI-Powered Analysis**: Utilizes Google's Gemini AI for intelligent transcript analysis
+- **Sentiment Analysis**: Evaluates the emotional tone and sentiment of earnings calls
+- **Market Impact Prediction**: Predicts potential stock movements based on earnings call content
+- **News Integration**: Fetches relevant news articles using Finnhub API
+- **Interactive Dashboard**: User-friendly Streamlit interface for easy interaction
+- **Rate Limiting**: Built-in protection against API rate limits
+- **Error Handling**: Robust error handling and logging system
+
+## Tech Stack
 
 - **Python 3.8+**
 - **Core Libraries**:
-  - `requests` – for downloading transcripts
-  - `beautifulsoup4` – for HTML parsing
-  - `nltk` – for sentiment analysis with VADER
-  - `matplotlib` – for sentiment visualization
-  - `pandas` – for data organization
-- **Optional**: `streamlit` for dashboard interface
+  - `streamlit` – Interactive web interface
+  - `google-generativeai` – Gemini AI integration
+  - `finnhub-python` – Financial data and news
+  - `python-dotenv` – Environment variable management
+  - `pandas` – Data manipulation
+  - `yfinance` – Stock price data
+  - `nltk` – Natural language processing
+  - `matplotlib` & `seaborn` – Data visualization
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
 - Python 3.8 or higher
 - pip (Python package installer)
+- Google Gemini API key
+- Finnhub API key
 
 ### Installation
 
@@ -31,13 +45,13 @@ cd earnings-call-sentiment-analyzer
 2. Create and activate a virtual environment:
 ```bash
 # Create virtual environment
-python -m venv venv
+python -m venv .venv
 
 # Activate virtual environment
 # On Windows:
-venv\Scripts\activate
+.venv\Scripts\activate
 # On Unix or MacOS:
-source venv/bin/activate
+source .venv/bin/activate
 ```
 
 3. Install dependencies:
@@ -45,91 +59,118 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-4. Download required NLTK data:
+4. Set up environment variables:
+   - Create a `.env` file in the project root
+   - Add your API keys and configuration:
+```env
+# API Keys
+GEMINI_API_KEY=your_gemini_api_key_here
+FINNHUB_API_KEY=your_finnhub_api_key_here
+
+# API Rate Limits
+FINNHUB_RATE_LIMIT=60  # calls per minute
+GEMINI_RATE_LIMIT=60   # calls per minute
+
+# Environment
+ENVIRONMENT=development  # development, production
+```
+
+## How It Works
+
+1. **Transcript Analysis**:
+   - Input: Earnings call transcript text
+   - Processing: Gemini AI analyzes the content
+   - Output: Concise summary and sentiment score
+
+2. **Sentiment Analysis**:
+   - Evaluates the emotional tone of the transcript
+   - Generates a sentiment score between -1 (negative) and 1 (positive)
+   - Provides detailed sentiment breakdown
+
+3. **Market Impact**:
+   - Analyzes potential stock movement (UP/DOWN/FLAT)
+   - Fetches historical stock data for context
+   - Integrates with news sentiment
+
+4. **News Integration**:
+   - Fetches relevant news articles
+   - Analyzes news sentiment
+   - Provides context for market impact
+
+## Usage
+
+1. Start the application:
 ```bash
-python -m nltk.downloader vader_lexicon
+streamlit run app.py
 ```
 
-## 📄 How It Works
+2. Using the Interface:
+   - Enter or paste the earnings call transcript
+   - Click "Analyze" to process the transcript
+   - View the analysis results:
+     - Transcript summary
+     - Sentiment score
+     - Predicted market impact
+     - Related news articles
 
-1. **Input**: User provides either:
-   - URL to an earnings call transcript
-   - Local .txt file containing the transcript
-
-2. **Processing**:
-   - Downloads and parses the transcript (if URL provided)
-   - Splits text into paragraphs/sentences
-   - Analyzes sentiment using VADER
-
-3. **Analysis**:
-   - Calculates sentiment scores:
-     - Positive
-     - Neutral
-     - Negative
-     - Compound (overall sentiment)
-
-4. **Output**:
-   - Generates sentiment visualization
-   - Exports results to CSV
-   - Displays console summary
-
-## 🧪 Usage
-
-### Command Line Interface
-
-```bash
-# Analyze from a transcript URL
-python main.py --url https://example.com/earnings-call.html
-
-# Analyze from a local .txt file
-python main.py --file transcripts/apple_q1_2024.txt
-```
-
-### Example Output
-
-```yaml
-Overall Compound Sentiment: 0.45 (Positive)
-Positive: 63%, Neutral: 30%, Negative: 7%
-```
-
-The analysis generates:
-- `sentiment_plot.png` – Visual graph of sentiment scores
-- `sentiment_scores.csv` – Detailed sentiment breakdown
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 earnings-call-sentiment-analyzer/
 │
-├── main.py              # Entry point
-├── analyzer.py          # Sentiment analysis logic
-├── utils.py            # Web/text processing helpers
-├── requirements.txt    # Project dependencies
-├── README.md          # Documentation
-└── transcripts/       # Sample transcripts
-    └── sample.txt
+├── app.py                    # Main Streamlit application
+├── requirements.txt          # Project dependencies
+├── README.md                # Documentation
+│
+├── api_integration/         # API client implementations
+│   ├── __init__.py
+│   ├── gemini_client.py     # Gemini AI integration
+│   ├── finnhub_client.py    # Finnhub data integration
+│   └── finnhub_search_client.py  # Company search
+│
+└── transcripts/             # Sample transcripts
 ```
 
-## 📝 Notes
+## Security
 
-- All file operations use UTF-8 encoding
-- Input files should be plain text (.txt) format
-- Avoids binary file operations to prevent null byte issues
+- API keys are stored in environment variables
+- Rate limiting implemented for API protection
+- Error handling for API failures
+- Secure configuration management
 
-## 📦 Dependencies
+## 🛠️ Development
 
-```
-requests
-beautifulsoup4
-nltk
-pandas
-matplotlib
-```
+### Adding New Features
 
-## 🤝 Contributing
+1. Create a new branch for your feature
+2. Implement the feature
+3. Add appropriate tests
+4. Submit a pull request
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+### Code Style
+
+- Follow PEP 8 guidelines
+- Use type hints
+- Document functions and classes
+- Include error handling
+
+## Notes
+
+- The application requires valid API keys to function
+- Rate limits are enforced to prevent API abuse
+- All analysis is performed in real-time
+- Results may vary based on API availability
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- Google Gemini AI for advanced language processing
+- Finnhub for financial data and news
+- Streamlit for the web interface framework 

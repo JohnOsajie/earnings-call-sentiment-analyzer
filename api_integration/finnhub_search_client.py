@@ -1,8 +1,8 @@
 """
 Finnhub Search Client Module
 
-This module provides functionality to search for companies using the Finnhub API,
-with proper rate limiting and error handling.
+This module provides functionality to search for companies and their information
+using the Finnhub API, with proper rate limiting and error handling.
 """
 
 import os
@@ -12,17 +12,22 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import logging
 from dotenv import load_dotenv
+import finnhub
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
+# Get API key from environment variable
+FINNHUB_API_KEY = os.getenv('FINNHUB_API_KEY')
+if not FINNHUB_API_KEY:
+    raise ValueError("FINNHUB_API_KEY environment variable is not set")
 
-# Constants
-FINNHUB_API_KEY = 'd0nvndpr01qn5ghmb0d0d0nvndpr01qn5ghmb0dg'
-RATE_LIMIT = 60  # calls per minute
+# Get rate limit from environment variable, default to 60 if not set
+RATE_LIMIT = int(os.getenv('FINNHUB_RATE_LIMIT', 60))
 
 class FinnhubSearchClient:
     """Client for searching companies using Finnhub API."""

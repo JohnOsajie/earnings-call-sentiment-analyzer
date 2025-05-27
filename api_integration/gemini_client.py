@@ -13,13 +13,20 @@ import google.generativeai as genai
 import logging
 from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Constants
-GEMINI_API_KEY = 'AIzaSyCLCbdNsmtNl1IS9S95kPOtMphMESeVND8'
-RATE_LIMIT = 60  # calls per minute
+# Get API key from environment variable
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
+if not GEMINI_API_KEY:
+    raise ValueError("GEMINI_API_KEY environment variable is not set")
+
+# Get rate limit from environment variable, default to 60 if not set
+RATE_LIMIT = int(os.getenv('GEMINI_RATE_LIMIT', 60))
 
 class RateLimiter:
     """Rate limiter for Gemini API calls."""

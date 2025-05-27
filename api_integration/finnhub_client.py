@@ -22,11 +22,13 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-# Constants
-FINNHUB_API_KEY = 'd0nvndpr01qn5ghmb0d0d0nvndpr01qn5ghmb0dg'
-RATE_LIMIT = 60  # calls per minute
-CALLS_PER_MINUTE = 0
-LAST_CALL_TIME = datetime.now()
+# Get API key from environment variable
+FINNHUB_API_KEY = os.getenv('FINNHUB_API_KEY')
+if not FINNHUB_API_KEY:
+    raise ValueError("FINNHUB_API_KEY environment variable is not set")
+
+# Get rate limit from environment variable, default to 60 if not set
+RATE_LIMIT = int(os.getenv('FINNHUB_RATE_LIMIT', 60))
 
 class RateLimiter:
     """Rate limiter for Finnhub API calls."""
