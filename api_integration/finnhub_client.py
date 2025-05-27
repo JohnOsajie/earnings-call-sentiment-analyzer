@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Constants
-FINNHUB_API_KEY = os.getenv('FINNHUB_API_KEY', 'd0nvndpr01qn5ghmb0d0d0nvndpr01qn5ghmb0dg')
+FINNHUB_API_KEY = 'd0nvndpr01qn5ghmb0d0d0nvndpr01qn5ghmb0dg'
 RATE_LIMIT = 60  # calls per minute
 CALLS_PER_MINUTE = 0
 LAST_CALL_TIME = datetime.now()
@@ -31,8 +31,8 @@ LAST_CALL_TIME = datetime.now()
 class RateLimiter:
     """Rate limiter for Finnhub API calls."""
     
-    def __init__(self, calls_per_minute: int):
-        self.calls_per_minute = calls_per_minute
+    def __init__(self):
+        self.calls_per_minute = RATE_LIMIT
         self.calls = 0
         self.last_reset = datetime.now()
     
@@ -46,11 +46,15 @@ class RateLimiter:
         if self.calls >= self.calls_per_minute:
             sleep_time = 60 - (now - self.last_reset).seconds
             if sleep_time > 0:
+                logger.info(f"Rate limit reached. Waiting {sleep_time} seconds...")
                 time.sleep(sleep_time)
             self.calls = 0
             self.last_reset = datetime.now()
         
         self.calls += 1
+
+# Initialize rate limiter
+rate_limiter = RateLimiter()
 
 def get_stock_price_on_date(symbol: str, date_str: str) -> dict:
     """
@@ -217,6 +221,16 @@ def get_sentiment(ticker: str, date: datetime) -> Dict:
         Dictionary containing articles data
     """
     try:
+        # Check if date is too old (Finnhub only provides last 7 days of news)
+        today = datetime.now().date()
+        max_start_date = today - pd.Timedelta(days=7)
+        
+        if date.date() < max_start_date:
+            return {
+                'summary': f'Note: Finnhub only provides news data for the last 7 days. Your requested date ({date.date()}) is too old.',
+                'articles': []
+            }
+        
         # Initialize Finnhub client
         finnhub_client = finnhub.Client(api_key=FINNHUB_API_KEY)
         
@@ -224,12 +238,15 @@ def get_sentiment(ticker: str, date: datetime) -> Dict:
         start_date = (date - pd.Timedelta(days=3)).strftime('%Y-%m-%d')
         end_date = (date + pd.Timedelta(days=3)).strftime('%Y-%m-%d')
         
+        # Apply rate limiting
+        rate_limiter.wait_if_needed()
+        
         # Fetch news
         news = finnhub_client.company_news(ticker, _from=start_date, to=end_date)
         
         if not news:
             return {
-                'summary': 'No news data available',
+                'summary': 'No news data available for the selected date range',
                 'articles': []
             }
         
@@ -241,6 +258,12 @@ def get_sentiment(ticker: str, date: datetime) -> Dict:
             'articles': processed_articles
         }
         
+    except finnhub.exceptions.FinnhubAPIException as e:
+        logger.error(f"Finnhub API error: {str(e)}")
+        return {
+            'summary': f'Finnhub API error: {str(e)}',
+            'articles': []
+        }
     except Exception as e:
         logger.error(f"Error fetching news data: {str(e)}")
         return {

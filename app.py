@@ -18,6 +18,8 @@ import logging
 from typing import Dict, List, Optional, Tuple, Any
 import yfinance as yf
 from api_integration.gemini_client import GeminiClient
+from api_integration.finnhub_search_client import FinnhubSearchClient
+import time
 
 # Import custom modules
 # from transcript_fetcher import fetch_transcript # We will primarily use pasted text, so commenting this out for now
@@ -36,9 +38,13 @@ except LookupError:
 # Initialize sentiment analyzer
 sia = SentimentIntensityAnalyzer()
 
-# Initialize Gemini client
-GEMINI_API_KEY = "AIzaSyCxSDVjgljIVoPTIxUQV9AVhGTo4iak7m8"
-gemini_client = GeminiClient(GEMINI_API_KEY)
+# Initialize clients
+try:
+    gemini_client = GeminiClient()
+    search_client = FinnhubSearchClient()
+except Exception as e:
+    st.error(f"Error initializing API clients: {str(e)}")
+    st.stop()
 
 # Commenting out earnings date fetching as manual input is default
 # def get_earnings_dates(ticker: str) -> List[datetime]:
@@ -299,7 +305,8 @@ def generate_market_impact_plot(
         ay=-40,
         bgcolor='rgba(255, 255, 255, 0.8)',
         bordercolor='black',
-        borderwidth=1
+        borderwidth=1,
+        font=dict(color='black', size=12)
     )
     
     # Add outcome annotation at end
@@ -336,7 +343,27 @@ def main():
     st.subheader("Enter Earnings Call Details")
     col1, col2 = st.columns(2)
     with col1:
-        ticker = st.text_input("Stock Ticker", "AAPL").upper()
+        # Create a search box for company/ticker
+        search_query = st.text_input(
+            "Search Company",
+            placeholder="Type company name...",
+            help="Search by company name or ticker symbol"
+        ).strip()
+        
+        # Show search results in a dropdown
+        ticker = ""
+        if search_query:
+            with st.spinner("Searching..."):
+                results = search_client.search_companies(search_query)
+                if results:
+                    # Create a formatted list of options
+                    options = [f"{r['name']} ({r['ticker']}) - {r['exchange']}" for r in results]
+                    selected = st.selectbox("Select Company", options)
+                    if selected:
+                        ticker = selected.split("(")[1].split(")")[0]  # Extract ticker from selection
+                else:
+                    st.info("No companies found matching your search.")
+            
     with col2:
         # Default to datetime.date for consistency with yfinance potentially
         date = st.date_input("Earnings Date", datetime.now().date())
