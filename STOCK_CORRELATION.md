@@ -3,12 +3,12 @@
 ## Overview
 This feature extends the Earnings Call Sentiment Analyzer to correlate sentiment scores with stock price movements, enabling users to analyze the relationship between earnings call sentiment and subsequent stock performance.
 
-## 🎯 Objectives
+## Objectives
 - Correlate earnings call sentiment with stock price movements
 - Build predictive models for stock returns based on sentiment
 - Visualize the relationship between sentiment and price movements
 
-## 📊 Data Requirements
+## Data Requirements
 
 ### Input Data
 - Earnings call transcript sentiment scores
@@ -21,7 +21,7 @@ This feature extends the Earnings Call Sentiment Analyzer to correlate sentiment
   - 1 day after earnings call
   - 7 days after earnings call
 
-## 🔄 Process Flow
+## Process Flow
 
 1. **Data Collection**
    - Fetch historical stock prices using yfinance
@@ -102,7 +102,7 @@ def train_classification_model(X: np.array, y: np.array) -> sklearn.Model:
     """
 ```
 
-## 📈 Output
+## Output
 
 ### Data
 - Merged dataframe with:
@@ -121,20 +121,20 @@ def train_classification_model(X: np.array, y: np.array) -> sklearn.Model:
 - Trained classification model
 - Model evaluation metrics
 
-## 🧪 Testing
+## Testing
 - Unit tests for data processing
 - Integration tests for yfinance API
 - Model performance validation
 - Edge case handling (market holidays, missing data)
 
-## 📝 Notes
+## Notes
 - Handle market holidays and missing data appropriately
 - Consider timezone differences for international stocks
 - Account for stock splits and dividends
 - Implement proper error handling for API calls
 - Cache price data to minimize API calls
 
-## 🔄 Future Enhancements
+## Future Enhancements
 - Add more sophisticated models (Random Forest, XGBoost)
 - Include additional features (market conditions, sector performance)
 - Implement backtesting capabilities
